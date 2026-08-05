@@ -145,18 +145,25 @@ async function getKYCByToken(req, res) {
 async function updateKYCByToken(req, res) {
   try {
     const { token } = req.params;
-    const body = req.body;
+    const { leadUpdates, ...kycBody } = req.body;
 
     const kyc = await KYC.findOne({ uniqueToken: token });
     if (!kyc || !kyc.isShared) {
       return res.status(404).json({ error: "This KYC link is not accessible or has been revoked" });
     }
 
-    Object.assign(kyc, body);
+    // Update Lead if leadUpdates provided
+    let lead = await Lead.findById(kyc.leadId);
+    if (leadUpdates && lead) {
+      Object.assign(lead, leadUpdates);
+      await lead.save();
+    }
+
+    // Update KYC
+    Object.assign(kyc, kycBody);
     kyc.updatedAt = new Date();
     await kyc.save();
 
-    const lead = await Lead.findById(kyc.leadId);
     res.json({ kyc, lead });
   } catch (err) {
     res.status(500).json({ error: err.message });
