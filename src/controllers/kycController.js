@@ -29,18 +29,31 @@ async function getOrCreateKYC(req, res) {
 async function updateKYC(req, res) {
   try {
     const { leadId } = req.params;
+    const { leadName, leadPhone, leadEmail, leadOccupation, leadCity, leadEmploymentType, ...kycBody } = req.body;
+
     let kyc = await KYC.findOne({ leadId });
 
     if (!kyc) {
-      kyc = new KYC({ leadId, ...req.body });
+      kyc = new KYC({ leadId, ...kycBody });
     } else {
-      Object.assign(kyc, req.body);
+      Object.assign(kyc, kycBody);
+    }
+
+    // Update Lead if Lead fields provided
+    let lead = await Lead.findById(leadId);
+    if (lead) {
+      if (leadName) lead.customerName = leadName;
+      if (leadPhone) lead.phone = leadPhone;
+      if (leadEmail) lead.email = leadEmail;
+      if (leadOccupation) lead.occupation = leadOccupation;
+      if (leadCity) lead.city = leadCity;
+      if (leadEmploymentType) lead.employmentType = leadEmploymentType;
+      await lead.save();
     }
 
     kyc.updatedAt = new Date();
     await kyc.save();
 
-    const lead = await Lead.findById(leadId);
     res.json({ kyc, lead });
   } catch (err) {
     res.status(500).json({ error: err.message });
