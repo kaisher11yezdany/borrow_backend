@@ -5,14 +5,14 @@ const Reminder = require("../models/Reminder");
 const Note = require("../models/Note");
 const Attachment = require("../models/Attachment");
 const { STAGES } = require("../config/constants");
-const { visibleLeadsFilter, descendantIds } = require("../utils/hierarchy");
+const { visibleLeadsFilter, descendantIds, hasOrgWideAccess } = require("../utils/hierarchy");
 const { canEditLead, canUpdateStage, isClosed } = require("../utils/permissions");
 const { phoneDuplicateStatus, setVerification, nextStage } = require("../utils/leadHelpers");
 const { pushNotification } = require("../utils/notify");
 const { deleteStoredFile } = require("../utils/fileStorage");
 
 async function assertVisible(req, lead) {
-  if (req.user.role === "Admin") return true;
+  if (hasOrgWideAccess(req.user.role)) return true;
   const ids = await descendantIds(req.user._id);
   return ids.has(String(lead.partnerId));
 }
@@ -133,7 +133,7 @@ async function updateLead(req, res) {
 }
 
 async function reassignLead(req, res) {
-  if (req.user.role !== "Admin") return res.status(403).json({ error: "Admin only" });
+  if (!hasOrgWideAccess(req.user.role)) return res.status(403).json({ error: "Not permitted for your role" });
   const lead = await Lead.findById(req.params.id);
   if (!lead) return res.status(404).json({ error: "Lead not found" });
   lead.partnerId = req.body.partnerId;
@@ -188,7 +188,7 @@ async function advanceStage(req, res) {
 // advanced by mistake). Forward movement must still go through advanceStage,
 // which enforces the required fields per stage — this only ever demotes.
 async function setStage(req, res) {
-  if (req.user.role !== "Admin") return res.status(403).json({ error: "Admin only" });
+  if (!hasOrgWideAccess(req.user.role)) return res.status(403).json({ error: "Not permitted for your role" });
   const lead = await Lead.findById(req.params.id);
   if (!lead) return res.status(404).json({ error: "Lead not found" });
   const { stage } = req.body;
@@ -301,7 +301,7 @@ async function closeLead(req, res) {
 }
 
 async function reopenLead(req, res) {
-  if (req.user.role !== "Admin") return res.status(403).json({ error: "Admin only" });
+  if (!hasOrgWideAccess(req.user.role)) return res.status(403).json({ error: "Not permitted for your role" });
   const lead = await Lead.findById(req.params.id);
   if (!lead) return res.status(404).json({ error: "Lead not found" });
   lead.closure = { status: "open", reason: "", by: null, at: null };

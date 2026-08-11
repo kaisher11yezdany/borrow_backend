@@ -21,6 +21,7 @@ const uploadRoutes = require("./routes/uploadRoutes");
 const noteRoutes = require("./routes/noteRoutes");
 const attachmentRoutes = require("./routes/attachmentRoutes");
 const kycRoutes = require("./routes/kycRoutes");
+const taskRoutes = require("./routes/taskRoutes");
 
 const app = express();
 
@@ -44,6 +45,7 @@ app.use("/api/uploads", uploadRoutes);
 app.use("/api/notes", noteRoutes);
 app.use("/api/attachments", attachmentRoutes);
 app.use("/api/kyc", kycRoutes);
+app.use("/api/tasks", taskRoutes);
 
 app.use(notFound);
 // Multer errors (bad file type, too large) arrive here rather than the generic handler.

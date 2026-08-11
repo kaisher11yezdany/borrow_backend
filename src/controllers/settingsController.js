@@ -1,9 +1,9 @@
 const { Product, Bank, ExpenseType, CompanyBankAccount, DigitalChannel } = require("../models/lookups");
-const { canManageTeam } = require("../utils/permissions");
+const { canManageSettings } = require("../utils/permissions");
 
 function requireAdmin(req, res) {
-  if (!canManageTeam(req.user)) {
-    res.status(403).json({ error: "Admin only" });
+  if (!canManageSettings(req.user)) {
+    res.status(403).json({ error: "Not permitted to manage settings" });
     return false;
   }
   return true;

@@ -35,10 +35,19 @@ async function run() {
     return user;
   }
 
+  // Admin -> Branch Manager -> Sales Manager -> Team Lead -> RM -> Referral Partner.
+  // Two RMs (each with their own Referral Partner) so peer-isolation is visible
+  // immediately after seeding: RM-A must never see RM-B's partner's leads.
+  // Backend is a cross-cutting role with no position in the tree (reportsTo: null).
   const admin = await makeUser({ name: "Praveen K C Reddy", email: "praveen@company.local", role: "Admin" });
-  const manager = await makeUser({ name: "Shanti", email: "shanti@company.local", role: "Manager", reportsTo: admin._id });
-  const salesManager = await makeUser({ name: "Roja", email: "roja@company.local", role: "Sales Manager", reportsTo: manager._id });
-  const partner = await makeUser({ name: "Ramachandra", email: "ramachandra@company.local", role: "Referral Partner", reportsTo: salesManager._id });
+  const backend = await makeUser({ name: "Ops Backend", email: "backend@company.local", role: "Backend" });
+  const branchManager = await makeUser({ name: "Shanti", email: "shanti@company.local", role: "Branch Manager", reportsTo: admin._id });
+  const salesManager = await makeUser({ name: "Roja", email: "roja@company.local", role: "Sales Manager", reportsTo: branchManager._id });
+  const teamLead = await makeUser({ name: "Karthik", email: "karthik@company.local", role: "Team Lead", reportsTo: salesManager._id });
+  const rmA = await makeUser({ name: "Ravi Kumar", email: "ravi@company.local", role: "RM", reportsTo: teamLead._id });
+  const rmB = await makeUser({ name: "Meena", email: "meena@company.local", role: "RM", reportsTo: teamLead._id });
+  const partnerA = await makeUser({ name: "Ramachandra", email: "ramachandra@company.local", role: "Referral Partner", reportsTo: rmA._id });
+  const partnerB = await makeUser({ name: "Lakshmi", email: "lakshmi@company.local", role: "Referral Partner", reportsTo: rmB._id });
 
   await Product.insertMany([
     { name: "Home Loan", active: true },
@@ -81,17 +90,33 @@ async function run() {
     customerName: "Shyam Reddy",
     phone: "9900011111",
     product: "Business Loan",
+    loanType: "Unsecure",
     loanAmount: 2500000,
     employmentType: "Self-employed",
     occupation: "Fabrication Business",
     city: "Kolar",
-    partnerId: partner._id,
-    addedBy: partner._id,
+    partnerId: partnerA._id,
+    addedBy: partnerA._id,
+  });
+
+  await Lead.create({
+    customerName: "Deepa Nair",
+    phone: "9900022222",
+    product: "Personal Loan",
+    loanType: "Unsecure",
+    loanAmount: 600000,
+    employmentType: "Salaried",
+    occupation: "Software Engineer",
+    city: "Bengaluru",
+    partnerId: partnerB._id,
+    addedBy: partnerB._id,
   });
 
   console.log("Seed complete. Login credentials (all users share the seed password):");
   console.log(`  Password: ${SEED_PASSWORD}`);
-  [admin, manager, salesManager, partner].forEach((u) => console.log(`  ${u.role.padEnd(16)} ${u.email}`));
+  [admin, backend, branchManager, salesManager, teamLead, rmA, rmB, partnerA, partnerB].forEach((u) =>
+    console.log(`  ${u.role.padEnd(16)} ${u.email}`)
+  );
 
   await mongoose.disconnect();
 }

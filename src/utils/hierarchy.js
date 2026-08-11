@@ -1,5 +1,4 @@
 const User = require("../models/User");
-const { rank } = require("../config/constants");
 
 // Loads the whole org chart once and traverses in memory — cheap for the
 // user-count this app is built for, and avoids N recursive queries.
@@ -38,8 +37,15 @@ async function reportingChain(userId) {
   return chain;
 }
 
+// Admin and Backend both get organization-wide visibility - Admin because
+// they own the whole org, Backend because it's a cross-cutting operational
+// role with no fixed position in the reporting tree (see constants.js).
+function hasOrgWideAccess(role) {
+  return role === "Admin" || role === "Backend";
+}
+
 async function visibleUserIds(currentUser) {
-  if (currentUser.role === "Admin") {
+  if (hasOrgWideAccess(currentUser.role)) {
     const users = await allUsers();
     return new Set(users.map((u) => String(u._id)));
   }
@@ -48,7 +54,7 @@ async function visibleUserIds(currentUser) {
 
 // Mongo filter fragment for {partnerId: ...} scoped to what this user may see.
 async function visibleLeadsFilter(currentUser) {
-  if (currentUser.role === "Admin") return {};
+  if (hasOrgWideAccess(currentUser.role)) return {};
   const ids = await descendantIds(currentUser._id);
   return { partnerId: { $in: Array.from(ids) } };
 }
@@ -71,5 +77,5 @@ module.exports = {
   visibleLeadsFilter,
   stakeholdersForLead,
   wouldCreateCycle,
-  rank,
+  hasOrgWideAccess,
 };

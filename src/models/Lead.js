@@ -52,6 +52,7 @@ const leadSchema = new Schema(
 
     product: { type: String, required: true },
     productColor: { type: String, default: "#3B82F6" },
+    loanType: { type: String, enum: ["Secure", "Unsecure"], default: "" },
     loanAmount: { type: Number, default: 0 },
     monthlyIncome: { type: Number, default: 0 },
     employmentType: { type: String, enum: ["Salaried", "Self-employed"], default: "Salaried" },
