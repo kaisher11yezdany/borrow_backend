@@ -310,10 +310,88 @@ async function reopenLead(req, res) {
   res.json({ lead });
 }
 
+async function requestDeleteLead(req, res) {
+  const lead = await Lead.findById(req.params.id);
+  if (!lead) return res.status(404).json({ error: "Lead not found" });
+
+  // Only approved leads require deletion request
+  if (lead.verification.status !== "verified") {
+    return res.status(400).json({ error: "Can only request deletion for verified leads" });
+  }
+
+  // Check if user has access to this lead
+  if (!(await assertVisible(req, lead))) {
+    return res.status(403).json({ error: "Not visible to you" });
+  }
+
+  // Check if deletion already requested or approved
+  if (lead.deletionRequest.status === "pending") {
+    return res.status(400).json({ error: "Deletion already requested" });
+  }
+  if (lead.deletionRequest.status === "approved") {
+    return res.status(400).json({ error: "Deletion already approved" });
+  }
+
+  // Request deletion
+  lead.deletionRequest = {
+    status: "pending",
+    requestedBy: req.user._id,
+    requestedAt: new Date(),
+    reason: req.body.reason || "",
+  };
+  await lead.save();
+  res.json({ lead });
+}
+
+async function approveDeleteRequest(req, res) {
+  if (req.user.role !== "Admin") return res.status(403).json({ error: "Admin only" });
+
+  const lead = await Lead.findById(req.params.id);
+  if (!lead) return res.status(404).json({ error: "Lead not found" });
+
+  if (lead.deletionRequest.status !== "pending") {
+    return res.status(400).json({ error: "No pending deletion request" });
+  }
+
+  const { approve } = req.body;
+
+  if (approve) {
+    // Delete the lead
+    lead.deletionRequest.status = "approved";
+    lead.deletionRequest.approvedBy = req.user._id;
+    lead.deletionRequest.approvedAt = new Date();
+
+    const attachments = await Attachment.find({ leadId: lead._id });
+    await Promise.all(attachments.map((a) => deleteStoredFile(a.url)));
+    await Promise.all([
+      AccountingEntry.deleteMany({ leadId: lead._id }),
+      Expense.deleteMany({ leadId: lead._id }),
+      Reminder.deleteMany({ leadId: lead._id }),
+      Note.deleteMany({ leadId: lead._id }),
+      Attachment.deleteMany({ leadId: lead._id }),
+      lead.deleteOne(),
+    ]);
+    res.json({ ok: true, message: "Lead deleted" });
+  } else {
+    // Reject deletion request
+    lead.deletionRequest.status = "rejected";
+    lead.deletionRequest.approvedBy = req.user._id;
+    lead.deletionRequest.approvedAt = new Date();
+    await lead.save();
+    res.json({ lead, message: "Deletion request rejected" });
+  }
+}
+
 async function deleteLead(req, res) {
   if (req.user.role !== "Admin") return res.status(403).json({ error: "Admin only" });
   const lead = await Lead.findById(req.params.id);
   if (!lead) return res.status(404).json({ error: "Lead not found" });
+
+  // Prevent deletion if lead is verified (approved)
+  if (lead.verification.status === "verified") {
+    return res.status(403).json({ error: "Cannot delete verified leads. Please request deletion instead." });
+  }
+
   const attachments = await Attachment.find({ leadId: lead._id });
   await Promise.all(attachments.map((a) => deleteStoredFile(a.url)));
   await Promise.all([
@@ -340,5 +418,7 @@ module.exports = {
   fixDisbursement,
   closeLead,
   reopenLead,
+  requestDeleteLead,
+  approveDeleteRequest,
   deleteLead,
 };

@@ -18,6 +18,8 @@ router.post("/:id/submit-final-verification", ctrl.submitFinalVerification);
 router.post("/:id/fix-disbursement", ctrl.fixDisbursement);
 router.post("/:id/close", ctrl.closeLead);
 router.post("/:id/reopen", ctrl.reopenLead);
+router.post("/:id/request-delete", ctrl.requestDeleteLead);
+router.post("/:id/approve-delete", ctrl.approveDeleteRequest);
 router.delete("/:id", ctrl.deleteLead);
 
 module.exports = router;

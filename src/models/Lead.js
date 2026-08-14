@@ -43,6 +43,18 @@ const closureSchema = new Schema(
   { _id: false }
 );
 
+const deletionRequestSchema = new Schema(
+  {
+    status: { type: String, enum: ["none", "pending", "approved", "rejected"], default: "none" },
+    requestedBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
+    requestedAt: { type: Date, default: null },
+    reason: { type: String, default: "" },
+    approvedBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
+    approvedAt: { type: Date, default: null },
+  },
+  { _id: false }
+);
+
 const leadSchema = new Schema(
   {
     customerName: { type: String, required: true, trim: true },
@@ -80,6 +92,7 @@ const leadSchema = new Schema(
     verification: { type: verificationSchema, default: () => ({ status: "pending" }) },
     finalVerification: { type: verificationSchema, default: () => ({ status: "not_applicable" }) },
     closure: { type: closureSchema, default: () => ({}) },
+    deletionRequest: { type: deletionRequestSchema, default: () => ({ status: "none" }) },
   },
   { timestamps: true }
 );
