@@ -1,5 +1,7 @@
 const Note = require("../models/Note");
 const Lead = require("../models/Lead");
+const { stakeholdersForLead } = require("../utils/hierarchy");
+const { pushNotification } = require("../utils/notify");
 
 function canModify(note, user) {
   return user.role === "Admin" || String(note.createdBy) === String(user._id);
@@ -17,6 +19,25 @@ async function addNote(req, res) {
   if (!text) return res.status(400).json({ error: "Note text is required" });
   const note = await Note.create({ leadId: lead._id, text, createdBy: req.user._id });
   await note.populate("createdBy", "name");
+
+  // Get all stakeholders who should be notified
+  const stakeholders = await stakeholdersForLead(lead);
+
+  // Emit real-time notification to all connected clients
+  req.app.io.emit("note:added", {
+    leadId: lead._id,
+    leadName: lead.customerName,
+    note: text.substring(0, 100), // First 100 chars
+    addedBy: req.user.name,
+    timestamp: new Date(),
+  });
+
+  // Create notification for lead owner and stakeholders
+  await pushNotification(
+    lead,
+    `${req.user.name} commented: "${text.substring(0, 50)}..."`
+  );
+
   res.status(201).json({ note });
 }
 
