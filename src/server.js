@@ -4,6 +4,8 @@ const express = require("express");
 const cors = require("cors");
 const morgan = require("morgan");
 const multer = require("multer");
+const { createServer } = require("http");
+const { Server } = require("socket.io");
 
 const connectDB = require("./config/db");
 const { notFound, errorHandler } = require("./middleware/errorHandler");
@@ -24,8 +26,13 @@ const kycRoutes = require("./routes/kycRoutes");
 const taskRoutes = require("./routes/taskRoutes");
 
 const app = express();
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
+  cors: { origin: process.env.CLIENT_ORIGIN || "http://localhost:5173", methods: ["GET", "POST"] }
+});
 
 app.use(cors({ origin: process.env.CLIENT_ORIGIN || "http://localhost:5173" }));
+app.io = io;
 app.use(express.json({ limit: "2mb" }));
 app.use(morgan("dev"));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
@@ -68,7 +75,16 @@ const PORT = process.env.PORT || 5000;
 (async function start() {
   try {
     await connectDB();
-    app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
+
+    // Socket.IO connection handling
+    io.on("connection", (socket) => {
+      console.log(`User connected: ${socket.id}`);
+      socket.on("disconnect", () => {
+        console.log(`User disconnected: ${socket.id}`);
+      });
+    });
+
+    httpServer.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
   } catch (err) {
     console.error("Failed to start server:", err);
     process.exit(1);

@@ -175,6 +175,10 @@ async function advanceStage(req, res) {
   lead.stage = next;
   lead.stageHistory.push({ stage: next, at: new Date() });
   await lead.save();
+
+  // Emit real-time update to all connected clients
+  req.app.io.emit("lead:updated", { leadId: lead._id, stage: lead.stage, updatedBy: req.user.name });
+
   await pushNotification(
     lead,
     next === "Disbursement Done"
@@ -209,6 +213,10 @@ async function setStage(req, res) {
     lead.finalVerification.note = "";
   }
   await lead.save();
+
+  // Emit real-time update to all connected clients
+  req.app.io.emit("lead:updated", { leadId: lead._id, stage: lead.stage, updatedBy: req.user.name });
+
   await pushNotification(lead, `${req.user.name} moved this lead back to "${stage}".`);
   res.json({ lead });
 }
