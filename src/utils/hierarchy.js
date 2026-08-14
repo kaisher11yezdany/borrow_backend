@@ -37,11 +37,10 @@ async function reportingChain(userId) {
   return chain;
 }
 
-// Admin and Backend both get organization-wide visibility - Admin because
-// they own the whole org, Backend because it's a cross-cutting operational
-// role with no fixed position in the reporting tree (see constants.js).
+// Only Admin gets organization-wide visibility - they own the whole org.
+// Backend must follow hierarchy and only see verified/assigned leads.
 function hasOrgWideAccess(role) {
-  return role === "Admin" || role === "Backend";
+  return role === "Admin";
 }
 
 async function visibleUserIds(currentUser) {
@@ -53,10 +52,14 @@ async function visibleUserIds(currentUser) {
 }
 
 // Mongo filter fragment for {partnerId: ...} scoped to what this user may see.
+// Non-admin users only see verified leads assigned to them or their team.
 async function visibleLeadsFilter(currentUser) {
   if (hasOrgWideAccess(currentUser.role)) return {};
   const ids = await descendantIds(currentUser._id);
-  return { partnerId: { $in: Array.from(ids) } };
+  return {
+    partnerId: { $in: Array.from(ids) },
+    "verification.status": "verified"  // Only show verified leads
+  };
 }
 
 async function stakeholdersForLead(lead) {
