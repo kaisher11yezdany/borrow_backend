@@ -52,13 +52,26 @@ async function visibleUserIds(currentUser) {
 }
 
 // Mongo filter fragment for {partnerId: ...} scoped to what this user may see.
-// Non-admin users only see verified leads assigned to them or their team.
+// Non-admin users see:
+// 1. Verified leads assigned to them or their team
+// 2. All leads created by their team members (even if unverified)
 async function visibleLeadsFilter(currentUser) {
   if (hasOrgWideAccess(currentUser.role)) return {};
   const ids = await descendantIds(currentUser._id);
+  const idArray = Array.from(ids);
+
   return {
-    partnerId: { $in: Array.from(ids) },
-    "verification.status": "verified"  // Only show verified leads
+    $or: [
+      // Leads assigned to user's team and verified
+      {
+        partnerId: { $in: idArray },
+        "verification.status": "verified"
+      },
+      // All leads created by user's team (regardless of verification status)
+      {
+        addedBy: { $in: idArray }
+      }
+    ]
   };
 }
 
