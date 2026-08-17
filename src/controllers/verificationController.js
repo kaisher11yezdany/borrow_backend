@@ -1,6 +1,6 @@
 const Lead = require("../models/Lead");
 const { visibleLeadsFilter } = require("../utils/hierarchy");
-const { canVerify } = require("../utils/permissions");
+const { canVerify, canVerifyActions } = require("../utils/permissions");
 const { setVerification } = require("../utils/leadHelpers");
 const { pushNotification } = require("../utils/notify");
 
@@ -46,7 +46,7 @@ async function getQueues(req, res) {
 }
 
 async function approve(req, res) {
-  if (!canVerify(req.user)) return res.status(403).json({ error: "Only Team Leads and above can verify leads" });
+  if (!canVerifyActions(req.user)) return res.status(403).json({ error: "Only Team Leads and above can approve verifications" });
   const { field } = req.params;
   if (!FIELDS.includes(field)) return res.status(400).json({ error: "Invalid verification field" });
   const lead = await Lead.findById(req.params.id);
@@ -63,7 +63,7 @@ async function approve(req, res) {
 }
 
 async function reject(req, res) {
-  if (!canVerify(req.user)) return res.status(403).json({ error: "Only Team Leads and above can verify leads" });
+  if (!canVerifyActions(req.user)) return res.status(403).json({ error: "Only Team Leads and above can reject verifications" });
   const { field } = req.params;
   if (!FIELDS.includes(field)) return res.status(400).json({ error: "Invalid verification field" });
   const reason = (req.body.reason || "").trim();

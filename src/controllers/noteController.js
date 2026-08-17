@@ -8,7 +8,13 @@ function canModify(note, user) {
 }
 
 async function listForLead(req, res) {
-  const notes = await Note.find({ leadId: req.params.leadId }).populate("createdBy", "name").sort({ createdAt: -1 });
+  const leadFilter = { leadId: req.params.leadId };
+  if (req.query.type === "note") {
+    leadFilter.$or = [{ type: "note" }, { type: { $exists: false } }];
+  } else if (req.query.type) {
+    leadFilter.type = req.query.type;
+  }
+  const notes = await Note.find(leadFilter).populate("createdBy", "name").sort({ createdAt: -1 });
   res.json({ notes });
 }
 
@@ -17,25 +23,24 @@ async function addNote(req, res) {
   if (!lead) return res.status(404).json({ error: "Lead not found" });
   const text = (req.body.text || "").trim();
   if (!text) return res.status(400).json({ error: "Note text is required" });
-  const note = await Note.create({ leadId: lead._id, text, createdBy: req.user._id });
+  const type = req.body.type || "note";
+  const note = await Note.create({ leadId: lead._id, text, type, createdBy: req.user._id });
   await note.populate("createdBy", "name");
 
-  // Get all stakeholders who should be notified
   const stakeholders = await stakeholdersForLead(lead);
 
-  // Emit real-time notification to all connected clients
   req.app.io.emit("note:added", {
     leadId: lead._id,
     leadName: lead.customerName,
-    note: text.substring(0, 100), // First 100 chars
+    note: text.substring(0, 100),
+    type,
     addedBy: req.user.name,
     timestamp: new Date(),
   });
 
-  // Create notification for lead owner and stakeholders
   await pushNotification(
     lead,
-    `${req.user.name} commented: "${text.substring(0, 50)}..."`
+    `${req.user.name} ${type === "comment" ? "commented" : "added a note"}: "${text.substring(0, 50)}..."`
   );
 
   res.status(201).json({ note });

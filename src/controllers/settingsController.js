@@ -1,4 +1,4 @@
-const { Product, Bank, ExpenseType, CompanyBankAccount, DigitalChannel } = require("../models/lookups");
+const { Product, Bank, ExpenseType, CompanyBankAccount, DigitalChannel, DSACode } = require("../models/lookups");
 const { canManageSettings } = require("../utils/permissions");
 
 function requireAdmin(req, res) {
@@ -10,19 +10,20 @@ function requireAdmin(req, res) {
 }
 
 async function getAllSettings(req, res) {
-  const [products, banks, expenseTypes, companyBankAccounts, digitalChannels] = await Promise.all([
+  const [products, banks, expenseTypes, companyBankAccounts, digitalChannels, dsaCodes] = await Promise.all([
     Product.find().sort({ name: 1 }),
     Bank.find().sort({ product: 1, name: 1 }),
     ExpenseType.find().sort({ name: 1 }),
     CompanyBankAccount.find().sort({ name: 1 }),
     DigitalChannel.find().sort({ name: 1 }),
+    DSACode.find().sort({ name: 1 }),
   ]);
   const banksByProduct = {};
   banks.forEach((b) => {
     if (!banksByProduct[b.product]) banksByProduct[b.product] = [];
     banksByProduct[b.product].push(b);
   });
-  res.json({ products, banksByProduct, expenseTypes, companyBankAccounts, digitalChannels });
+  res.json({ products, banksByProduct, expenseTypes, companyBankAccounts, digitalChannels, dsaCodes });
 }
 
 // Factory for the five near-identical "name + active" lookup lists.
@@ -81,6 +82,7 @@ const productHandlers = {
 const expenseTypeHandlers = lookupHandlers(ExpenseType, "Expense type");
 const companyBankAccountHandlers = lookupHandlers(CompanyBankAccount, "Account");
 const digitalChannelHandlers = lookupHandlers(DigitalChannel, "Channel");
+const dsaCodeHandlers = lookupHandlers(DSACode, "DSA code");
 
 async function addBank(req, res) {
   if (!requireAdmin(req, res)) return;
@@ -108,6 +110,7 @@ module.exports = {
   expenseTypeHandlers,
   companyBankAccountHandlers,
   digitalChannelHandlers,
+  dsaCodeHandlers,
   addBank,
   toggleBankActive,
 };

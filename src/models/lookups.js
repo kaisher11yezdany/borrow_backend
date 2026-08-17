@@ -24,10 +24,14 @@ companyBankAccountSchema.index({ name: 1 }, { unique: true });
 const digitalChannelSchema = nameActiveSchema();
 digitalChannelSchema.index({ name: 1 }, { unique: true });
 
+const dsaCodeSchema = nameActiveSchema();
+dsaCodeSchema.index({ name: 1 }, { unique: true });
+
 module.exports = {
   Product: mongoose.model("Product", productSchema),
   Bank: mongoose.model("Bank", bankSchema),
   ExpenseType: mongoose.model("ExpenseType", expenseTypeSchema),
   CompanyBankAccount: mongoose.model("CompanyBankAccount", companyBankAccountSchema),
   DigitalChannel: mongoose.model("DigitalChannel", digitalChannelSchema),
+  DSACode: mongoose.model("DSACode", dsaCodeSchema),
 };

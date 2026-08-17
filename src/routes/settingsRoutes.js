@@ -24,4 +24,7 @@ router.patch("/company-bank-accounts/:id/toggle", asyncHandler(ctrl.companyBankA
 router.post("/digital-channels", asyncHandler(ctrl.digitalChannelHandlers.add));
 router.patch("/digital-channels/:id/toggle", asyncHandler(ctrl.digitalChannelHandlers.toggleActive));
 
+router.post("/dsa-codes", asyncHandler(ctrl.dsaCodeHandlers.add));
+router.patch("/dsa-codes/:id/toggle", asyncHandler(ctrl.dsaCodeHandlers.toggleActive));
+
 module.exports = router;
