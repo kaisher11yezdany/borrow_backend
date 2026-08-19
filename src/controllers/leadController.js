@@ -73,14 +73,26 @@ async function getLead(req, res) {
 
       // Populate userId
       if (assignment.userId) {
-        const user = await User.findById(assignment.userId).select("name email role");
-        lead.backendTeamAssignments[i].userId = user;
+        const userId = String(assignment.userId._id || assignment.userId);
+        const user = await User.findById(userId).select("name email role");
+        if (user) {
+          lead.backendTeamAssignments[i] = {
+            ...assignment.toObject?.() || assignment,
+            userId: user
+          };
+        }
       }
 
       // Populate assignedBy
       if (assignment.assignedBy) {
-        const assignedByUser = await User.findById(assignment.assignedBy).select("name email");
-        lead.backendTeamAssignments[i].assignedBy = assignedByUser;
+        const assignedById = String(assignment.assignedBy._id || assignment.assignedBy);
+        const assignedByUser = await User.findById(assignedById).select("name email");
+        if (assignedByUser) {
+          lead.backendTeamAssignments[i] = {
+            ...lead.backendTeamAssignments[i].toObject?.() || lead.backendTeamAssignments[i],
+            assignedBy: assignedByUser
+          };
+        }
       }
     }
   }
