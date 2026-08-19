@@ -1,4 +1,5 @@
 const Lead = require("../models/Lead");
+const User = require("../models/User");
 const AccountingEntry = require("../models/AccountingEntry");
 const Expense = require("../models/Expense");
 const Reminder = require("../models/Reminder");
@@ -60,20 +61,30 @@ async function listLeads(req, res) {
 }
 
 async function getLead(req, res) {
-  const lead = await Lead.findById(req.params.id)
-    .populate({
-      path: "backendTeamAssignments.userId",
-      select: "name email role",
-      options: { lean: false }
-    })
-    .populate({
-      path: "backendTeamAssignments.assignedBy",
-      select: "name email",
-      options: { lean: false }
-    });
+  const lead = await Lead.findById(req.params.id);
 
   if (!lead) return res.status(404).json({ error: "Lead not found" });
   if (!(await assertVisible(req, lead))) return res.status(403).json({ error: "Not visible to you" });
+
+  // Manual population for backend team assignments
+  if (lead.backendTeamAssignments && lead.backendTeamAssignments.length > 0) {
+    for (let i = 0; i < lead.backendTeamAssignments.length; i++) {
+      const assignment = lead.backendTeamAssignments[i];
+
+      // Populate userId
+      if (assignment.userId) {
+        const user = await User.findById(assignment.userId).select("name email role");
+        lead.backendTeamAssignments[i].userId = user;
+      }
+
+      // Populate assignedBy
+      if (assignment.assignedBy) {
+        const assignedByUser = await User.findById(assignment.assignedBy).select("name email");
+        lead.backendTeamAssignments[i].assignedBy = assignedByUser;
+      }
+    }
+  }
+
   res.json({ lead });
 }
 
