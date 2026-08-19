@@ -55,6 +55,7 @@ async function visibleUserIds(currentUser) {
 // Non-admin users see:
 // 1. Verified leads assigned to them or their team
 // 2. All leads created by their team members (even if unverified)
+// 3. Leads where they are in the backend team assignments
 async function visibleLeadsFilter(currentUser) {
   if (hasOrgWideAccess(currentUser.role)) return {};
   const ids = await descendantIds(currentUser._id);
@@ -70,6 +71,10 @@ async function visibleLeadsFilter(currentUser) {
       // All leads created by user's team (regardless of verification status)
       {
         addedBy: { $in: idArray }
+      },
+      // Leads where user is assigned to backend team
+      {
+        "backendTeamAssignments.userId": currentUser._id
       }
     ]
   };
