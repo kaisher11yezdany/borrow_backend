@@ -33,7 +33,12 @@ async function listLeads(req, res) {
   if (q.showClosed !== "true") filter["closure.status"] = "open";
   if (q.search) {
     const re = new RegExp(escapeRegex(q.search.trim()), "i");
-    filter.$or = [{ customerName: re }, { phone: re }];
+    const visibilityConditions = filter.$or;
+    filter.$and = [
+      { $or: visibilityConditions },
+      { $or: [{ customerName: re }, { phone: re }] }
+    ];
+    delete filter.$or;
   }
   if (q.from || q.to) {
     filter.createdAt = {};
