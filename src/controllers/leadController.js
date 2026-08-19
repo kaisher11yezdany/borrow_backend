@@ -55,7 +55,9 @@ async function listLeads(req, res) {
 }
 
 async function getLead(req, res) {
-  const lead = await Lead.findById(req.params.id);
+  const lead = await Lead.findById(req.params.id)
+    .populate("backendTeamAssignments.userId", "name email role")
+    .populate("backendTeamAssignments.assignedBy", "name email");
   if (!lead) return res.status(404).json({ error: "Lead not found" });
   if (!(await assertVisible(req, lead))) return res.status(403).json({ error: "Not visible to you" });
   res.json({ lead });

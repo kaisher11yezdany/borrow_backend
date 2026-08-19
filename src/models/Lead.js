@@ -55,6 +55,15 @@ const deletionRequestSchema = new Schema(
   { _id: false }
 );
 
+const backendTeamAssignmentSchema = new Schema(
+  {
+    userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    assignedBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    assignedAt: { type: Date, default: Date.now },
+  },
+  { _id: true }
+);
+
 const leadSchema = new Schema(
   {
     customerName: { type: String, required: true, trim: true },
@@ -93,6 +102,7 @@ const leadSchema = new Schema(
     finalVerification: { type: verificationSchema, default: () => ({ status: "not_applicable" }) },
     closure: { type: closureSchema, default: () => ({}) },
     deletionRequest: { type: deletionRequestSchema, default: () => ({ status: "none" }) },
+    backendTeamAssignments: { type: [backendTeamAssignmentSchema], default: () => [] },
   },
   { timestamps: true }
 );

@@ -2,6 +2,7 @@ const express = require("express");
 const { requireAuth } = require("../middleware/auth");
 const { wrapAll } = require("../utils/asyncHandler");
 const ctrl = wrapAll(require("../controllers/leadController"));
+const backendTeamCtrl = wrapAll(require("../controllers/backendTeamController"));
 
 const router = express.Router();
 router.use(requireAuth);
@@ -21,5 +22,10 @@ router.post("/:id/reopen", ctrl.reopenLead);
 router.post("/:id/request-delete", ctrl.requestDeleteLead);
 router.post("/:id/approve-delete", ctrl.approveDeleteRequest);
 router.delete("/:id", ctrl.deleteLead);
+
+// Backend team assignments
+router.post("/:id/assign-backend-team", backendTeamCtrl.assignBackendTeam);
+router.post("/:id/unassign-backend-team", backendTeamCtrl.unassignBackendTeam);
+router.get("/backend-team/members", backendTeamCtrl.getBackendTeamMembers);
 
 module.exports = router;
