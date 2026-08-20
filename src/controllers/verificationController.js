@@ -3,6 +3,7 @@ const { visibleLeadsFilter } = require("../utils/hierarchy");
 const { canVerify, canVerifyActions } = require("../utils/permissions");
 const { setVerification } = require("../utils/leadHelpers");
 const { pushNotification } = require("../utils/notify");
+const { emitLeadUpdate } = require("../utils/realtime");
 
 const FIELDS = ["verification", "finalVerification"];
 
@@ -59,6 +60,7 @@ async function approve(req, res) {
       ? `${req.user.name} approved the final check — lead is now Completed.`
       : `${req.user.name} verified this lead.`
   );
+  emitLeadUpdate(req, lead);
   res.json({ lead });
 }
 
@@ -76,6 +78,7 @@ async function reject(req, res) {
     lead,
     `${req.user.name} rejected this lead${field === "finalVerification" ? " at the final check" : ""}. Reason: ${reason}`
   );
+  emitLeadUpdate(req, lead);
   res.json({ lead });
 }
 

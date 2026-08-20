@@ -1,6 +1,7 @@
 const Lead = require("../models/Lead");
 const User = require("../models/User");
 const { canUpdateStage } = require("../utils/permissions");
+const { emitLeadUpdate } = require("../utils/realtime");
 
 exports.assignBackendTeam = async (req, res) => {
   const { id: leadId } = req.params;
@@ -52,6 +53,7 @@ exports.assignBackendTeam = async (req, res) => {
       { path: "backendTeamAssignments.assignedBy", select: "name email" },
     ]);
 
+    emitLeadUpdate(req, lead);
     res.json({ lead });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -87,6 +89,7 @@ exports.unassignBackendTeam = async (req, res) => {
       { path: "backendTeamAssignments.assignedBy", select: "name email" },
     ]);
 
+    emitLeadUpdate(req, lead);
     res.json({ lead });
   } catch (err) {
     res.status(500).json({ error: err.message });

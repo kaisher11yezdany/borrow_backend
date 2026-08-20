@@ -1,5 +1,4 @@
 const Lead = require("../models/Lead");
-const User = require("../models/User");
 const AccountingEntry = require("../models/AccountingEntry");
 const Expense = require("../models/Expense");
 const Reminder = require("../models/Reminder");
@@ -10,6 +9,7 @@ const { visibleLeadsFilter, descendantIds, hasOrgWideAccess } = require("../util
 const { canEditLead, canUpdateStage, isClosed } = require("../utils/permissions");
 const { phoneDuplicateStatus, setVerification, nextStage } = require("../utils/leadHelpers");
 const { pushNotification } = require("../utils/notify");
+const { emitLeadUpdate } = require("../utils/realtime");
 const { deleteStoredFile } = require("../utils/fileStorage");
 
 async function assertVisible(req, lead) {
@@ -21,6 +21,13 @@ async function assertVisible(req, lead) {
 function escapeRegex(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
+
+// The lead details modal reads its lead straight off the list response, so both
+// the list and the single-lead route have to resolve these names.
+const BACKEND_TEAM_POPULATE = [
+  { path: "backendTeamAssignments.userId", select: "name email role" },
+  { path: "backendTeamAssignments.assignedBy", select: "name email" },
+];
 
 // Filtering and pagination both happen in Mongo, not in memory — this list
 // is expected to grow, so we only ever pull one page off the wire.
@@ -34,12 +41,15 @@ async function listLeads(req, res) {
   if (q.showClosed !== "true") filter["closure.status"] = "open";
   if (q.search) {
     const re = new RegExp(escapeRegex(q.search.trim()), "i");
-    const visibilityConditions = filter.$or;
-    filter.$and = [
-      { $or: visibilityConditions },
-      { $or: [{ customerName: re }, { phone: re }] }
-    ];
-    delete filter.$or;
+    const searchClause = { $or: [{ customerName: re }, { phone: re }] };
+    // Org-wide roles get an empty visibility filter, so there is no $or to
+    // preserve — only the scoped roles need the two clauses ANDed together.
+    if (filter.$or) {
+      filter.$and = [{ $or: filter.$or }, searchClause];
+      delete filter.$or;
+    } else {
+      Object.assign(filter, searchClause);
+    }
   }
   if (q.from || q.to) {
     filter.createdAt = {};
@@ -54,49 +64,17 @@ async function listLeads(req, res) {
     Lead.find(filter)
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
-      .limit(limit),
+      .limit(limit)
+      .populate(BACKEND_TEAM_POPULATE),
     Lead.countDocuments(filter),
   ]);
   res.json({ leads, total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) });
 }
 
 async function getLead(req, res) {
-  const lead = await Lead.findById(req.params.id);
-
+  const lead = await Lead.findById(req.params.id).populate(BACKEND_TEAM_POPULATE);
   if (!lead) return res.status(404).json({ error: "Lead not found" });
   if (!(await assertVisible(req, lead))) return res.status(403).json({ error: "Not visible to you" });
-
-  // Manual population for backend team assignments
-  if (lead.backendTeamAssignments && lead.backendTeamAssignments.length > 0) {
-    for (let i = 0; i < lead.backendTeamAssignments.length; i++) {
-      const assignment = lead.backendTeamAssignments[i];
-
-      // Populate userId
-      if (assignment.userId) {
-        const userId = String(assignment.userId._id || assignment.userId);
-        const user = await User.findById(userId).select("name email role");
-        if (user) {
-          lead.backendTeamAssignments[i] = {
-            ...assignment.toObject?.() || assignment,
-            userId: user
-          };
-        }
-      }
-
-      // Populate assignedBy
-      if (assignment.assignedBy) {
-        const assignedById = String(assignment.assignedBy._id || assignment.assignedBy);
-        const assignedByUser = await User.findById(assignedById).select("name email");
-        if (assignedByUser) {
-          lead.backendTeamAssignments[i] = {
-            ...lead.backendTeamAssignments[i].toObject?.() || lead.backendTeamAssignments[i],
-            assignedBy: assignedByUser
-          };
-        }
-      }
-    }
-  }
-
   res.json({ lead });
 }
 
@@ -126,6 +104,7 @@ async function createLead(req, res) {
     verification: { status: dupe.status, note: dupe.note, history: [] },
   });
   await pushNotification(lead, `${req.user.name} added a new lead.`);
+  emitLeadUpdate(req, lead);
   res.status(201).json({ lead });
 }
 
@@ -160,14 +139,17 @@ async function updateLead(req, res) {
       setVerification(lead, "verification", dupe.status, `Resubmitted by ${req.user.name}`, req.user._id);
       await lead.save();
       await pushNotification(lead, `${req.user.name} edited and resubmitted this lead for review.`);
+      emitLeadUpdate(req, lead);
       return res.json({ lead });
     }
     await lead.save();
     await pushNotification(lead, `${req.user.name} edited this lead's details.`);
+    emitLeadUpdate(req, lead);
     return res.json({ lead });
   }
   await lead.save();
   await pushNotification(lead, `${req.user.name} updated details on this lead after it was already verified.`);
+  emitLeadUpdate(req, lead);
   res.json({ lead });
 }
 
@@ -178,6 +160,7 @@ async function reassignLead(req, res) {
   lead.partnerId = req.body.partnerId;
   await lead.save();
   await pushNotification(lead, `${req.user.name} reassigned this lead.`);
+  emitLeadUpdate(req, lead);
   res.json({ lead });
 }
 
@@ -215,8 +198,7 @@ async function advanceStage(req, res) {
   lead.stageHistory.push({ stage: next, at: new Date() });
   await lead.save();
 
-  // Emit real-time update to all connected clients
-  req.app.io.emit("lead:updated", { leadId: lead._id, stage: lead.stage, updatedBy: req.user.name });
+  emitLeadUpdate(req, lead);
 
   await pushNotification(
     lead,
@@ -253,8 +235,7 @@ async function setStage(req, res) {
   }
   await lead.save();
 
-  // Emit real-time update to all connected clients
-  req.app.io.emit("lead:updated", { leadId: lead._id, stage: lead.stage, updatedBy: req.user.name });
+  emitLeadUpdate(req, lead);
 
   await pushNotification(lead, `${req.user.name} moved this lead back to "${stage}".`);
   res.json({ lead });
@@ -282,6 +263,7 @@ async function editStageDetails(req, res) {
   }
   await lead.save();
   await pushNotification(lead, `${req.user.name} edited stage details for this lead.`);
+  emitLeadUpdate(req, lead);
   res.json({ lead });
 }
 
@@ -311,6 +293,7 @@ async function submitFinalVerification(req, res) {
   setVerification(lead, "finalVerification", "pending", "", req.user._id);
   await lead.save();
   await pushNotification(lead, `${req.user.name} submitted this lead for final verification — it can no longer be edited.`);
+  emitLeadUpdate(req, lead);
   res.json({ lead });
 }
 
@@ -329,6 +312,7 @@ async function fixDisbursement(req, res) {
   setVerification(lead, "finalVerification", "pending", `Resubmitted by ${req.user.name}`, req.user._id);
   await lead.save();
   await pushNotification(lead, `${req.user.name} fixed and resubmitted disbursement details for the final check.`);
+  emitLeadUpdate(req, lead);
   res.json({ lead });
 }
 
@@ -344,6 +328,7 @@ async function closeLead(req, res) {
     lead,
     `${req.user.name} closed this lead as "${status === "withdrawn" ? "Withdrawn" : "Declined"}". Reason: ${lead.closure.reason}`
   );
+  emitLeadUpdate(req, lead);
   res.json({ lead });
 }
 
@@ -354,6 +339,7 @@ async function reopenLead(req, res) {
   lead.closure = { status: "open", reason: "", by: null, at: null };
   await lead.save();
   await pushNotification(lead, `${req.user.name} reopened this lead.`);
+  emitLeadUpdate(req, lead);
   res.json({ lead });
 }
 
@@ -387,6 +373,7 @@ async function requestDeleteLead(req, res) {
     reason: req.body.reason || "",
   };
   await lead.save();
+  emitLeadUpdate(req, lead);
   res.json({ lead });
 }
 
@@ -418,6 +405,7 @@ async function approveDeleteRequest(req, res) {
       Attachment.deleteMany({ leadId: lead._id }),
       lead.deleteOne(),
     ]);
+    emitLeadUpdate(req, lead);
     res.json({ ok: true, message: "Lead deleted" });
   } else {
     // Reject deletion request
@@ -425,6 +413,7 @@ async function approveDeleteRequest(req, res) {
     lead.deletionRequest.approvedBy = req.user._id;
     lead.deletionRequest.approvedAt = new Date();
     await lead.save();
+    emitLeadUpdate(req, lead);
     res.json({ lead, message: "Deletion request rejected" });
   }
 }
@@ -449,6 +438,7 @@ async function deleteLead(req, res) {
     Attachment.deleteMany({ leadId: lead._id }),
     lead.deleteOne(),
   ]);
+  emitLeadUpdate(req, lead);
   res.json({ ok: true });
 }
 
