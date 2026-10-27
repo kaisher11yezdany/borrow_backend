@@ -25,13 +25,24 @@ const attachmentRoutes = require("./routes/attachmentRoutes");
 const kycRoutes = require("./routes/kycRoutes");
 const taskRoutes = require("./routes/taskRoutes");
 
+const allowedOrigins = (process.env.CLIENT_ORIGIN || "http://localhost:5173")
+  .split(",")
+  .map((o) => o.trim());
+
+const corsOptions = {
+  origin: (origin, cb) => {
+    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+    cb(new Error(`CORS: ${origin} not allowed`));
+  },
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  credentials: true,
+};
+
 const app = express();
 const httpServer = createServer(app);
-const io = new Server(httpServer, {
-  cors: { origin: process.env.CLIENT_ORIGIN || "http://localhost:5173", methods: ["GET", "POST"] }
-});
+const io = new Server(httpServer, { cors: corsOptions });
 
-app.use(cors({ origin: process.env.CLIENT_ORIGIN || "http://localhost:5173" }));
+app.use(cors(corsOptions));
 app.io = io;
 app.use(express.json({ limit: "2mb" }));
 app.use(morgan("dev"));
